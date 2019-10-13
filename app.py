@@ -5,7 +5,6 @@ import os
 
 app = Flask(__name__)
 
-
 @app.route('/', methods=['GET'])
 def handle_verification():
     if (request.args.get('hub.verify_token', '') == 'verification_token_for_facebook_chatbot'):
@@ -14,7 +13,6 @@ def handle_verification():
     else:
         print("Wrong token")
         return "Error, wrong validation token"
-
 
 @app.route('/', methods=['POST'])
 def handle_message():
@@ -101,6 +99,34 @@ def get_response(msg):
     print(t)
     return t
 
+
+#def getQuote(age, gender, height, weight, zipCode, coverage, duration):
+def getQuote():
+    params = {"valid":"true","id":0,"name":"assessment_new","funeral":{"amount":20000},"debt":{"amount":0},"collegeExpenses":{"numberOfChildren":1,"collegeType":"COLLEGE4PUBLIC","amount":0},"income":{"annually":"true","amount":"","wagePerHour":"","hoursPerWeek":"","years":10},"asset":{"savings":"","payout":""},"insured":{"age":23,"gender":"Male","zip":"12345","weight":189,"feet":6,"inches":1,"tobacco":"never"},"coverage":{"type":"term10","amount":1111111},"isTermProduct":"true","isPermanentProduct":"false"}
+    coverageNeeds = {"coverageNeeds": json.dumps(params)}
+    headers = {
+                "Accept": "application/json",
+                "Connection": "keep-alive",
+                "CustomHeader": "LifeCalculator",
+                "Host": "www.principalcom",
+                "Referer": "https://www.principal.com/individuals/life-insurance-calculator/",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-origin",
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36"
+            }
+    response = requests.get(
+            'https://www.principal.com/ind/api/marketing/life-insurance-calculator/coverage-options', 
+            params=coverageNeeds,
+            headers=headers
+    )
+    jsonResponse = response.json()
+    duration = 20
+    if (duration == 10):
+        return str(jsonResponse['tenYrCoveragePremium'])
+    elif (duration == 20):
+        return str(jsonResponse['twentyYrCoveragePremium'])
+    else:
+        return str(jsonResponse['thirtyYrCoveragePremium'])
 
 if __name__ == '__main__':
     app.run(debug=True)
