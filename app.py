@@ -66,7 +66,7 @@ def get_image_attr(image_url):
 def send_response(sender_id, message_text):
     url = "https://graph.facebook.com/v4.0/me/messages"
     params = {
-        'access_token': 'EAAIMDU43nkMBABY4e5PlZBBvNdPpHAyrEoTF4Niep5X1hSwMaZAcJPZCNrjxlR8VPwogerSishkbxhtLkSG1UR1zGeo6cXaR5Q0YKgBJGGVIYmyxQUgOKekYQZB3SSM7NcQtvVjuqpvQ82rcN4RQ7HwpHHMXXUrYkB1m4RmOHwZDZD'}
+        'access_token': 'EAAIMDU43nkMBAMUZA5SHjZCB4N01MlfkLyuKpSY3me0PZAAZCW8R7vO3g3ZCYlklMaomZBoVYZAnAqm5Vwa6BV3dZCWyu4MZAnaPpgxGv5C2ILiBMebku3Pio1bWN65Ndry0CvAvgeeVyQa2k9dh3HntZCiffungeR2XlDmW75ZAZCQlIQZDZD'}
     headers = {'Content-Type': 'application/json'}
     data = {'recipient': {'id': sender_id}, 'message': {'text': message_text}}
     response = requests.post(url, params=params, headers=headers, json=data)
