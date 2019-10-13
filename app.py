@@ -16,28 +16,38 @@ def handle_verification():
 
 @app.route('/', methods=['POST'])
 def handle_message():
-	try:
-	    data = request.get_json()
-	    print(data)
-	    sender_id = data['entry'][0]['messaging'][0]['sender']['id']
-	    message = data['entry'][0]['messaging'][0]['message']
-	    # check if attachment is there
-	    if 'attachments' in message:
-	        attachments = message['attachments'][0]
-	        if attachments['type'] == 'image':
-	            img_url = attachments['payload']['url']
-	            kairos_response = get_image_attr(img_url)
-	            print(kairos_response)
-	            send_response(sender_id, 'Your ' + str(kairos_response['age']) + ' years old')
-	    else:
-	    	send_response(sender_id, get_response(data['entry'][0]['messaging'][0]['message']['text']))
-	    return 'success'
-	except Exception as e:
-		print('fail bc')
-		print(e)
-		sender_id = data['entry'][0]['messaging'][0]['sender']['id']
-		send_response(sender_id, 'sorry, mai chutiya hu')
-		return 'failure'
+    try:
+        print(request)
+        data = request.get_json()
+        print(data)
+        sender_id = data['entry'][0]['messaging'][0]['sender']['id']
+        message = data['entry'][0]['messaging'][0]['message']
+        # check if attachment is there
+        if 'attachments' in message:
+            attachments = message['attachments'][0]
+            if attachments['type'] == 'image':
+                img_url = attachments['payload']['url']
+                kairos_response = get_image_attr(img_url)
+                height = 72
+                weight = 189
+                zipCode = 27606
+                coverage = 1111111
+                duration = 10
+                premium = getQuote(kairos_response['age'], getGender(kairos_response['gender']), height, weight, zipCode, coverage, duration)
+                print(kairos_response)
+                print(premium)
+                #send_response(sender_id, 'Your ' + str(kairos_response['age']) + ' years old')
+                #You'll be paying a premium of _ dollars per month for the next _ years against a coverage of _ dollars
+                send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(duration) + ' years against a coverage of $' + str(coverage))
+        else:
+            send_response(sender_id, get_response(data['entry'][0]['messaging'][0]['message']['text']))
+        return 'success'
+    except Exception as e:
+        print('fail bc')
+        print(e)
+        sender_id = data['entry'][0]['messaging'][0]['sender']['id']
+        send_response(sender_id, 'sorry, mai chutiya hu')
+        return 'failure'
 
 
 @app.route('/dummy/', methods=['POST'])
@@ -45,6 +55,12 @@ def dummy_call():
     image_url = 'https://scontent.xx.fbcdn.net/v/t1.15752-9/72404461_2374600332609020_2060756206615527424_n.jpg?_nc_cat=110&_nc_oc=AQlyM1OIamsAE7YTjBT7ruSL9ZWLsohLfuUVIfy3sFPUOHnbW2HSXGQEX-Nxci9RFDv6CUxGBG_rGgXUkh3wy-G0&_nc_ad=z-m&_nc_cid=0&_nc_zor=9&_nc_ht=scontent.xx&oh=c09ee506ab3804996bf8e320701697e7&oe=5E63E6A7'
     get_image_attr(image_url)
     return 'success'
+
+def getGender(gender):
+    if (gender['type'] == 'M'):
+        return "Male"
+    else:
+        return "Female"
 
 
 def get_image_attr(image_url):
@@ -100,9 +116,12 @@ def get_response(msg):
     return t
 
 
-#def getQuote(age, gender, height, weight, zipCode, coverage, duration):
-def getQuote():
-    params = {"valid":"true","id":0,"name":"assessment_new","funeral":{"amount":20000},"debt":{"amount":0},"collegeExpenses":{"numberOfChildren":1,"collegeType":"COLLEGE4PUBLIC","amount":0},"income":{"annually":"true","amount":"","wagePerHour":"","hoursPerWeek":"","years":10},"asset":{"savings":"","payout":""},"insured":{"age":23,"gender":"Male","zip":"12345","weight":189,"feet":6,"inches":1,"tobacco":"never"},"coverage":{"type":"term10","amount":1111111},"isTermProduct":"true","isPermanentProduct":"false"}
+#def getQuote():
+def getQuote(age, gender, height, weight, zipCode, coverage, duration):
+    feet = height / 12
+    inches = height % 12
+    typeValue = "term" + str(duration)
+    params = {"valid":"true","id":0,"name":"assessment_new","funeral":{"amount":20000},"debt":{"amount":0},"collegeExpenses":{"numberOfChildren":1,"collegeType":"COLLEGE4PUBLIC","amount":0},"income":{"annually":"true","amount":"","wagePerHour":"","hoursPerWeek":"","years":duration},"asset":{"savings":"","payout":""},"insured":{"age":age,"gender":gender,"zip":zipCode,"weight":weight,"feet":feet,"inches":inches,"tobacco":"never"},"coverage":{"type":typeValue,"amount":coverage},"isTermProduct":"true","isPermanentProduct":"false"}
     coverageNeeds = {"coverageNeeds": json.dumps(params)}
     headers = {
                 "Accept": "application/json",
@@ -120,7 +139,6 @@ def getQuote():
             headers=headers
     )
     jsonResponse = response.json()
-    duration = 20
     if (duration == 10):
         return str(jsonResponse['tenYrCoveragePremium'])
     elif (duration == 20):
