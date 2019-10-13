@@ -13,8 +13,8 @@ db = cluster["Database1"]
 posts = db.posts
 
 location_utterences = ['Can you share your location?', 'Please share your location!', 'Where are you located?']
-height_utterences = ['How tall are you in inches? (1 feet is 12 inches)', 'What is your height?']
-weight_utterences = ['How much do you weigh(in pounds) ?', 'May I have your weight please?']
+height_utterences = ['How tall are you in inches? (1 feet is 12 inches)', 'What is your height? (in inches)']
+weight_utterences = ['How much do you weigh (in pounds) ?', 'May I have your weight please (in pounds)?']
 
 @app.route('/', methods=['GET'])
 def handle_verification():
@@ -74,6 +74,16 @@ def handle_message():
                     send_response(sender_id, 'Hold on, I have something more for you!')
                     get_typing_dots()
                     generate_plan_buttons()
+        elif (isButton(message)):
+            myDuration = getButton(message)
+            data = getFromDB()
+            highestPrority = getHighestPriorityRemaining(data)
+            if duration is not None and highestPrority is None:
+                premium = getPremium(data, myDuration)
+                send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(myDuration) + ' years against a coverage of $' + str(coverage))
+            else:
+                responseMessage = askForRemaining(data)
+                send_response(sender_id, responseMessage)
         else:
             data = getFromDB()
             highestPref = getHighestPriorityRemaining(data)
@@ -260,9 +270,10 @@ def askForRemaining(data):
         return weight_utterences[0]
     return None
 
-def getPremium(data):
+def getPremium(data, duration = None):
     coverage = 1111111
-    duration = 10
+    if duration is None:
+        duration = 10
     return getQuote(data['age'], data['gender'], data['height'], data['weight'], data['zipCode'], coverage, duration)
 
 def getNum(string):
@@ -275,7 +286,7 @@ def generate_plan_buttons():
 
 	querystring = {"access_token":"EAAIMDU43nkMBAMsTVVOJwAJYmje3ycxvyTFRENPoRs8ZB2Q2ji15RwY5MMuGBbWWywyVNrJQR2E29YEVcpa41dBvouHe23MS4nanceH2UZBsiJZBO8hDoEq2VFFryqweHD8RuOgO65v3JfS7Ial56cKPZC1IG0Iymafid9eTqgZDZD"}
 
-	payload = "{\n  \"recipient\":{\n    \"id\":\"3046136198791668\"\n  },\n  \"message\":{\n    \"attachment\":{\n      \"type\":\"template\",\n      \"payload\":{\n        \"template_type\":\"button\",\n        \"text\":\"Please choose one of the following options\",\n        \"buttons\":[\n          {\n  \"type\": \"postback\",\n  \"title\": \"10 Year Term Plan\",\n  \"payload\": \"buprefix ton 1\"\n},{\n  \"type\": \"postback\",\n  \"title\": \"20 Year Term Plan\",\n  \"payload\": \"buprefix ton 1\"\n},{\n  \"type\": \"postback\",\n  \"title\": \"30 Year Term Plan\",\n  \"payload\": \"buprefix ton 1\"\n}\n        ]\n      }\n    }\n  }\n}"
+	payload = "{\n  \"recipient\":{\n    \"id\":\"3046136198791668\"\n  },\n  \"message\":{\n    \"attachment\":{\n      \"type\":\"template\",\n      \"payload\":{\n        \"template_type\":\"button\",\n        \"text\":\"Please choose one of the following options\",\n        \"buttons\":[\n          {\n  \"type\": \"postback\",\n  \"title\": \"10 Year Term Plan\",\n  \"payload\": \"button-10\"\n},{\n  \"type\": \"postback\",\n  \"title\": \"20 Year Term Plan\",\n  \"payload\": \"button-20\"\n},{\n  \"type\": \"postback\",\n  \"title\": \"30 Year Term Plan\",\n  \"payload\": \"button-30\"\n}\n        ]\n      }\n    }\n  }\n}"
 	headers = {
 	    'Content-Type': "application/json",
 	    'User-Agent': "PostmanRuntime/7.17.1",
@@ -319,6 +330,22 @@ def am_i_a_joke():
 	payload = "{\n  \"recipient\":{\n    \"id\":\"3046136198791668\"\n  },\n  \"message\":{\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n         \"template_type\": \"media\",\n         \"elements\": [\n            {\n               \"media_type\": \"image\",\n               \"url\": \"https://www.facebook.com/100745301348385/photos/p.100897881333127/100897881333127/?type=3&theater\"\n            }\n         ]\n      }\n    }    \n  }\n}"
 	headers = {'Content-Type': "application/json",'User-Agent': "PostmanRuntime/7.17.1",'Accept': "*/*",'Cache-Control': "no-cache",'Postman-Token': "20da8710-9a1a-4a95-96bc-638a4704f43e,0e568397-73db-464e-999d-f007997037bb",'Host': "graph.facebook.com",'Accept-Encoding': "gzip, deflate",'Content-Length': "410",'Connection': "keep-alive",'cache-control': "no-cache"}
 	response = requests.request("POST", url, data=payload, headers=headers, params=querystring)
+
+def getButton(string):
+    if (string == "button-10"):
+        return 10
+    if (string == "button-20"):
+        return 20
+    if (string == "button-30"):
+        return 30
+    return None
+
+def isButton(string):
+    button = getButton(string)
+    if button is None:
+        return False
+    else:
+        return True
 
 if __name__ == '__main__':
     app.run(debug=True)
