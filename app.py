@@ -5,11 +5,16 @@ import os
 import pymongo
 import re
 from pymongo import MongoClient
+import random
 
 app = Flask(__name__)
 cluster = MongoClient("mongodb+srv://User1:User1@cluster1-ltlxk.gcp.mongodb.net/test?retryWrites=true&w=majority")
 db = cluster["Database1"]
 posts = db.posts
+
+location_utterences = ['Can you share your location?', 'Please share your location!', 'Where are you located?']
+height_utterences = ['How tall are you in inches? (1 feet is 12 inches)', 'What is your height?']
+weight_utterences = ['How much do you weigh(in pounds) ?', 'May I have your weight please?']
 
 @app.route('/', methods=['GET'])
 def handle_verification():
@@ -32,23 +37,28 @@ def handle_message():
         data = request.get_json()
         print(data)
         sender_id = data['entry'][0]['messaging'][0]['sender']['id']
+
         message = data['entry'][0]['messaging'][0]['message']
+        print(message)
         # check if attachment is there
         if 'attachments' in message:
             attachments = message['attachments'][0]
             if attachments['type'] == 'image':
                 img_url = attachments['payload']['url']
                 kairos_response = get_image_attr(img_url)
+                if kairos_response is None:
+                	am_i_a_joke()
+                	return 'failure'
                 data = {'age': kairos_response['age'], 'gender': getGender(kairos_response['gender'])}
                 replaceInDB(data)
                 responseMessage = askForRemaining(data)
                 send_response(sender_id, responseMessage)
-                premium = getQuote(kairos_response['age'], getGender(kairos_response['gender']), height, weight, zipCode, coverage, duration)
-                print(kairos_response)
-                print(premium)
+                #premium = getQuote(kairos_response['age'], getGender(kairos_response['gender']), height, weight, zipCode, coverage, duration)
+                ##print(kairos_response)
+                #print(premium)
                 #send_response(sender_id, 'Your ' + str(kairos_response['age']) + ' years old')
                 #You'll be paying a premium of _ dollars per month for the next _ years against a coverage of _ dollars
-                send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(duration) + ' years against a coverage of $' + str(coverage))
+                #send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(duration) + ' years against a coverage of $' + str(coverage))
             elif attachments['type'] == 'location':
                 latitude, longitude = attachments['payload']['coordinates']['lat'], attachments['payload']['coordinates']['long']
                 zip_code = get_zip(latitude, longitude)
@@ -60,6 +70,10 @@ def handle_message():
                 else:
                     premium = getPremium(newData)
                     send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(duration) + ' years against a coverage of $' + str(coverage))
+                    get_typing_dots()
+                    send_response(sender_id, 'Hold on, I have something more for you!')
+                    get_typing_dots()
+                    generate_plan_buttons()
         else:
             data = getFromDB()
             highestPref = getHighestPriorityRemaining(data)
@@ -68,7 +82,7 @@ def handle_message():
                 if (highestPref == "IMAGE" or highestPref == "LOCATION"):
                     applicable = False
                 else:
-                    num = getNum(message)
+                    num = getNum(message['text'])
                     if (num != None):
                         if (highestPref == "HEIGHT"):
                             key = "height"
@@ -82,12 +96,16 @@ def handle_message():
                         else:
                             premium = getPremium(newData)
                             send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(duration) + ' years against a coverage of $' + str(coverage))
+                            get_typing_dots()
+                            send_response(sender_id, 'Hold on, I have something more for you!')
+                            get_typing_dots()
+                            generate_plan_buttons()
                     else:
                         applicable = False
                 if (applicable == False):
-                    send_response(sender_id, get_response(data['entry'][0]['messaging'][0]['message']['text']))
+                    send_response(sender_id, get_response(message['text']))
             else:
-                send_response(sender_id, get_response(data['entry'][0]['messaging'][0]['message']['text']))
+                send_response(sender_id, get_response(message['text']))
         return 'success'
     except Exception as e:
         print('fail bc')
@@ -116,6 +134,8 @@ def get_image_attr(image_url):
     headers = {'Content-Type': 'application/json', 'app_id': '9d749141', 'app_key': '5c6e1d1671afb0845147870ac7ce3446'}
     response = requests.post(url, headers=headers, json=data)
     resp_json = response.json()
+    if 'Errors' in resp_json.keys():
+    	return None
     images = resp_json['images'][0]
     faces = images['faces'][0]
     attributes = faces['attributes']
@@ -123,13 +143,13 @@ def get_image_attr(image_url):
 
 
 def send_response(sender_id, message_text):
-    url = "https://graph.facebook.com/v4.0/me/messages"
-    params = {
-        'access_token': 'EAAIMDU43nkMBAMUZA5SHjZCB4N01MlfkLyuKpSY3me0PZAAZCW8R7vO3g3ZCYlklMaomZBoVYZAnAqm5Vwa6BV3dZCWyu4MZAnaPpgxGv5C2ILiBMebku3Pio1bWN65Ndry0CvAvgeeVyQa2k9dh3HntZCiffungeR2XlDmW75ZAZCQlIQZDZD'}
-    headers = {'Content-Type': 'application/json'}
-    data = {'recipient': {'id': sender_id}, 'message': {'text': message_text}}
-    response = requests.post(url, params=params, headers=headers, json=data)
-    return response
+	get_typing_dots()
+	url = "https://graph.facebook.com/v4.0/me/messages"
+	params = {'access_token': 'EAAIMDU43nkMBAMsTVVOJwAJYmje3ycxvyTFRENPoRs8ZB2Q2ji15RwY5MMuGBbWWywyVNrJQR2E29YEVcpa41dBvouHe23MS4nanceH2UZBsiJZBO8hDoEq2VFFryqweHD8RuOgO65v3JfS7Ial56cKPZC1IG0Iymafid9eTqgZDZD'}
+	headers = {'Content-Type': 'application/json'}
+	data = {'recipient': {'id': sender_id}, 'message': {'text': message_text}}
+	response = requests.post(url, params=params, headers=headers, json=data)
+	return response
 
 
 @app.route('/test', methods=['POST'])
@@ -233,22 +253,72 @@ def askForRemaining(data):
     if (remaining == "IMAGE"):
         return "Selfie bhej"
     if (remaining == "LOCATION"):
-        return "Location bhej"
+        return location_utterences[random.randint(0,2)]
     if (remaining == "HEIGHT"):
-        return "Height bhej"
+        return height_utterences[random.randint(0,1)]
     if (remaining == "WEIGHT"):
-        return "Weight bhej"
+        return weight_utterences[0]
     return None
 
 def getPremium(data):
     coverage = 1111111
     duration = 10
-    return getQuote(data['age'], data['gender'], data['height'], data['weight'], data['zipCode'])
+    return getQuote(data['age'], data['gender'], data['height'], data['weight'], data['zipCode'], coverage, duration)
 
 def getNum(string):
     match = re.search(r'\d+', string)
     if (match != None):
-        return match.group()
+        return int(match.group())
+
+def generate_plan_buttons():
+	url = "https://graph.facebook.com/v4.0/me/messages"
+
+	querystring = {"access_token":"EAAIMDU43nkMBAMsTVVOJwAJYmje3ycxvyTFRENPoRs8ZB2Q2ji15RwY5MMuGBbWWywyVNrJQR2E29YEVcpa41dBvouHe23MS4nanceH2UZBsiJZBO8hDoEq2VFFryqweHD8RuOgO65v3JfS7Ial56cKPZC1IG0Iymafid9eTqgZDZD"}
+
+	payload = "{\n  \"recipient\":{\n    \"id\":\"3046136198791668\"\n  },\n  \"message\":{\n    \"attachment\":{\n      \"type\":\"template\",\n      \"payload\":{\n        \"template_type\":\"button\",\n        \"text\":\"Please choose one of the following options\",\n        \"buttons\":[\n          {\n  \"type\": \"postback\",\n  \"title\": \"10 Year Term Plan\",\n  \"payload\": \"buprefix ton 1\"\n},{\n  \"type\": \"postback\",\n  \"title\": \"20 Year Term Plan\",\n  \"payload\": \"buprefix ton 1\"\n},{\n  \"type\": \"postback\",\n  \"title\": \"30 Year Term Plan\",\n  \"payload\": \"buprefix ton 1\"\n}\n        ]\n      }\n    }\n  }\n}"
+	headers = {
+	    'Content-Type': "application/json",
+	    'User-Agent': "PostmanRuntime/7.17.1",
+	    'Accept': "*/*",
+	    'Cache-Control': "no-cache",
+	    'Postman-Token': "b58e3a22-1724-4235-84ea-9dd0cf0f4571,8f69cec1-85af-4230-9968-3bc9f23693d3",
+	    'Host': "graph.facebook.com",
+	    'Accept-Encoding': "gzip, deflate",
+	    'Content-Length': "545",
+	    'Connection': "keep-alive",
+	    'cache-control': "no-cache"
+	    }
+
+	response = requests.request("POST", url, data=payload, headers=headers, params=querystring)
+	return 'success'
+
+def get_typing_dots():
+	url = "https://graph.facebook.com/v2.6/me/messages"
+
+	querystring = {"access_token":"EAAIMDU43nkMBAMsTVVOJwAJYmje3ycxvyTFRENPoRs8ZB2Q2ji15RwY5MMuGBbWWywyVNrJQR2E29YEVcpa41dBvouHe23MS4nanceH2UZBsiJZBO8hDoEq2VFFryqweHD8RuOgO65v3JfS7Ial56cKPZC1IG0Iymafid9eTqgZDZD"}
+
+	payload = "{\n  \"recipient\":{\n    \"id\":\"3046136198791668\"\n  },\n  \"sender_action\":\"typing_on\"\n}"
+	headers = {
+	    'Content-Type': "application/json",
+	    'Accept': "*/*",
+	    'Cache-Control': "no-cache",
+	    'Host': "graph.facebook.com",
+	    'Accept-Encoding': "gzip, deflate",
+	    'Content-Length': "82",
+	    'Connection': "keep-alive",
+	    'cache-control': "no-cache"
+	    }
+
+	response = requests.request("POST", url, data=payload, headers=headers, params=querystring)
+
+	print(response.text)
+
+def am_i_a_joke():
+	url = "https://graph.facebook.com/v2.6/me/messages"
+	querystring = {"access_token":"EAAIMDU43nkMBAMsTVVOJwAJYmje3ycxvyTFRENPoRs8ZB2Q2ji15RwY5MMuGBbWWywyVNrJQR2E29YEVcpa41dBvouHe23MS4nanceH2UZBsiJZBO8hDoEq2VFFryqweHD8RuOgO65v3JfS7Ial56cKPZC1IG0Iymafid9eTqgZDZD"}
+	payload = "{\n  \"recipient\":{\n    \"id\":\"3046136198791668\"\n  },\n  \"message\":{\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n         \"template_type\": \"media\",\n         \"elements\": [\n            {\n               \"media_type\": \"image\",\n               \"url\": \"https://www.facebook.com/100745301348385/photos/p.100897881333127/100897881333127/?type=3&theater\"\n            }\n         ]\n      }\n    }    \n  }\n}"
+	headers = {'Content-Type': "application/json",'User-Agent': "PostmanRuntime/7.17.1",'Accept': "*/*",'Cache-Control': "no-cache",'Postman-Token': "20da8710-9a1a-4a95-96bc-638a4704f43e,0e568397-73db-464e-999d-f007997037bb",'Host': "graph.facebook.com",'Accept-Encoding': "gzip, deflate",'Content-Length': "410",'Connection': "keep-alive",'cache-control': "no-cache"}
+	response = requests.request("POST", url, data=payload, headers=headers, params=querystring)
 
 if __name__ == '__main__':
     app.run(debug=True)
