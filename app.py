@@ -39,6 +39,10 @@ def handle_message():
                 #send_response(sender_id, 'Your ' + str(kairos_response['age']) + ' years old')
                 #You'll be paying a premium of _ dollars per month for the next _ years against a coverage of _ dollars
                 send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(duration) + ' years against a coverage of $' + str(coverage))
+            elif attachments['type'] == 'location':
+                latitude, longitude = attachments['payload']['coordinates']['lat'], attachments['payload']['coordinates']['long']
+                zip_code = get_zip(latitude, longitude)
+                send_response(sender_id, str(zip_code))
         else:
             send_response(sender_id, get_response(data['entry'][0]['messaging'][0]['message']['text']))
         return 'success'
@@ -78,7 +82,7 @@ def get_image_attr(image_url):
 def send_response(sender_id, message_text):
     url = "https://graph.facebook.com/v4.0/me/messages"
     params = {
-        'access_token': 'EAAIMDU43nkMBABY4e5PlZBBvNdPpHAyrEoTF4Niep5X1hSwMaZAcJPZCNrjxlR8VPwogerSishkbxhtLkSG1UR1zGeo6cXaR5Q0YKgBJGGVIYmyxQUgOKekYQZB3SSM7NcQtvVjuqpvQ82rcN4RQ7HwpHHMXXUrYkB1m4RmOHwZDZD'}
+        'access_token': 'EAAIMDU43nkMBAMUZA5SHjZCB4N01MlfkLyuKpSY3me0PZAAZCW8R7vO3g3ZCYlklMaomZBoVYZAnAqm5Vwa6BV3dZCWyu4MZAnaPpgxGv5C2ILiBMebku3Pio1bWN65Ndry0CvAvgeeVyQa2k9dh3HntZCiffungeR2XlDmW75ZAZCQlIQZDZD'}
     headers = {'Content-Type': 'application/json'}
     data = {'recipient': {'id': sender_id}, 'message': {'text': message_text}}
     response = requests.post(url, params=params, headers=headers, json=data)
@@ -145,6 +149,15 @@ def getQuote(age, gender, height, weight, zipCode, coverage, duration):
         return str(jsonResponse['twentyYrCoveragePremium'])
     else:
         return str(jsonResponse['thirtyYrCoveragePremium'])
+
+def get_zip(latitude, longitude):
+    url = "https://maps.googleapis.com/maps/api/geocode/json"
+    querystring = {"latlng":str(latitude) + "," + str(longitude),"key":"AIzaSyA-QIPlustS1vfaRGoxyVAK9R20JU2v20U"}
+    headers = {'Accept': "*/*", 'Cache-Control': "no-cache", 'Host': "maps.googleapis.com", 'Accept-Encoding': "gzip, deflate", 'Connection': "keep-alive", 'cache-control': "no-cache"}
+    response = requests.request("GET", url, headers=headers, params=querystring)
+    address_tuples = json.loads(response.text)['results'][0]['address_components']
+    zip_code = [i['long_name'] for i in address_tuples if i['types'][0] == 'postal_code'][0]
+    return zip_code
 
 if __name__ == '__main__':
     app.run(debug=True)
