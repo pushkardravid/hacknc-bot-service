@@ -29,6 +29,10 @@ def handle_message():
 	            kairos_response = get_image_attr(img_url)
 	            print(kairos_response)
 	            send_response(sender_id, 'Your ' + str(kairos_response['age']) + ' years old')
+	        elif attachments['type'] == 'location':
+	        	latitude, longitude = attachments['payload']['coordinates']['lat'], attachments['payload']['coordinates']['long']
+	        	zip_code = get_zip(latitude, longitude)
+	        	send_response(sender_id, str(zip_code))
 	    else:
 	    	send_response(sender_id, get_response(data['entry'][0]['messaging'][0]['message']['text']))
 	    return 'success'
@@ -127,6 +131,15 @@ def getQuote():
         return str(jsonResponse['twentyYrCoveragePremium'])
     else:
         return str(jsonResponse['thirtyYrCoveragePremium'])
+
+def get_zip(latitude, longitude):
+	url = "https://maps.googleapis.com/maps/api/geocode/json"
+	querystring = {"latlng":str(latitude) + "," + str(longitude),"key":"AIzaSyA-QIPlustS1vfaRGoxyVAK9R20JU2v20U"}
+	headers = {'Accept': "*/*", 'Cache-Control': "no-cache", 'Host': "maps.googleapis.com", 'Accept-Encoding': "gzip, deflate", 'Connection': "keep-alive", 'cache-control': "no-cache"}
+	response = requests.request("GET", url, headers=headers, params=querystring)
+	address_tuples = json.loads(response.text)['results'][0]['address_components']
+	zip_code = [i['long_name'] for i in address_tuples if i['types'][0] == 'postal_code'][0]
+	return zip_code
 
 if __name__ == '__main__':
     app.run(debug=True)
