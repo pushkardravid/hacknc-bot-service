@@ -2,8 +2,14 @@ from flask import Flask, request
 import requests
 import json
 import os
+import pymongo
+import re
+from pymongo import MongoClient
 
 app = Flask(__name__)
+cluster = MongoClient("mongodb+srv://User1:User1@cluster1-ltlxk.gcp.mongodb.net/test?retryWrites=true&w=majority")
+db = cluster["Database1"]
+posts = db.posts
 
 @app.route('/', methods=['GET'])
 def handle_verification():
@@ -18,6 +24,11 @@ def handle_verification():
 def handle_message():
     try:
         print(request)
+        height = 72
+        weight = 189
+        zipCode = 27606
+        coverage = 1111111
+        duration = 10
         data = request.get_json()
         print(data)
         sender_id = data['entry'][0]['messaging'][0]['sender']['id']
@@ -28,11 +39,10 @@ def handle_message():
             if attachments['type'] == 'image':
                 img_url = attachments['payload']['url']
                 kairos_response = get_image_attr(img_url)
-                height = 72
-                weight = 189
-                zipCode = 27606
-                coverage = 1111111
-                duration = 10
+                data = {'age': kairos_response['age'], 'gender': kairos_response['gender']}
+                replaceInDB(data)
+                responseMessage = askForRemaining(data)
+                send_response(sender_id, responseMessage)
                 premium = getQuote(kairos_response['age'], getGender(kairos_response['gender']), height, weight, zipCode, coverage, duration)
                 print(kairos_response)
                 print(premium)
@@ -42,9 +52,42 @@ def handle_message():
             elif attachments['type'] == 'location':
                 latitude, longitude = attachments['payload']['coordinates']['lat'], attachments['payload']['coordinates']['long']
                 zip_code = get_zip(latitude, longitude)
-                send_response(sender_id, str(zip_code))
+                updateToDB({"zipCode": zip_code})
+                newData = getFromDB()
+                responseMessage = askForRemaining(newData)
+                if (responseMessage != None):
+                    send_response(sender_id, responseMessage)
+                else:
+                    premium = getPremium(newData)
+                    send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(duration) + ' years against a coverage of $' + str(coverage))
         else:
-            send_response(sender_id, get_response(data['entry'][0]['messaging'][0]['message']['text']))
+            data = getFromDB()
+            highestPref = getHighestPriorityRemaining(data)
+            applicable = True
+            if (highestPref != None):
+                if (highestPref == "IMAGE" or highestPref == "LOCATION"):
+                    applicable = False
+                else:
+                    num = getNum(message)
+                    if (num != None):
+                        if (highestPref == "HEIGHT"):
+                            key = "height"
+                        else:
+                            key = "weight"
+                        updateToDB({key: num})
+                        newData = getFromDB()
+                        responseMessage = askForRemaining(newData)
+                        if (responseMessage != None):
+                            send_response(sender_id, responseMessage)
+                        else:
+                            premium = getPremium(newData)
+                            send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(duration) + ' years against a coverage of $' + str(coverage))
+                    else:
+                        applicable = False
+                if (applicable == False):
+                    send_response(sender_id, get_response(data['entry'][0]['messaging'][0]['message']['text']))
+            else:
+                send_response(sender_id, get_response(data['entry'][0]['messaging'][0]['message']['text']))
         return 'success'
     except Exception as e:
         print('fail bc')
@@ -158,6 +201,54 @@ def get_zip(latitude, longitude):
     address_tuples = json.loads(response.text)['results'][0]['address_components']
     zip_code = [i['long_name'] for i in address_tuples if i['types'][0] == 'postal_code'][0]
     return zip_code
+
+def getFromDB():
+    return posts.find_one('UNIQUE_ID')
+
+def updateToDB(data):
+    only_id = {
+        '_id': 'UNIQUE_ID'
+    }
+    result = posts.update_one(only_id, {"$set": data}, upsert=True)
+
+def replaceInDB(data):
+    only_id = {
+        '_id': 'UNIQUE_ID'
+    }
+    result = posts.replace_one(only_id, data, upsert=True)
+
+def getHighestPriorityRemaining(data):
+    if (data == None or ("age" not in data) or ("gender" not in data)):
+        return "IMAGE"
+    if ("zipCode" not in data):
+        return "LOCATION"
+    if ("height" not in data):
+        return "HEIGHT"
+    if ("weight" not in data):
+        return "WEIGHT"
+    return None
+
+def askForRemaining(data):
+    remaining = getHighestPriorityRemaining(data)
+    if (remaining == "IMAGE"):
+        return "Selfie bhej"
+    if (remaining == "LOCATION"):
+        return "Location bhej"
+    if (remaining == "HEIGHT"):
+        return "Height bhej"
+    if (remaining == "WEIGHT"):
+        return "Weight bhej"
+    return None
+
+def getPremium(data):
+    coverage = 1111111
+    duration = 10
+    return getQuote(data['age'], data['gender'], data['height'], data['weight'], data['zipCode'])
+
+def getNum(string):
+    match = re.search(r'\d+', string)
+    if (match != None):
+        return match.group()
 
 if __name__ == '__main__':
     app.run(debug=True)
