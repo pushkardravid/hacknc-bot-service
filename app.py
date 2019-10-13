@@ -39,7 +39,7 @@ def handle_message():
             if attachments['type'] == 'image':
                 img_url = attachments['payload']['url']
                 kairos_response = get_image_attr(img_url)
-                data = {'age': kairos_response['age'], 'gender': kairos_response['gender']}
+                data = {'age': kairos_response['age'], 'gender': getGender(kairos_response['gender'])}
                 replaceInDB(data)
                 responseMessage = askForRemaining(data)
                 send_response(sender_id, responseMessage)
