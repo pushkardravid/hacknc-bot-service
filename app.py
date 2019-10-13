@@ -53,6 +53,7 @@ def handle_message():
                 img_url = attachments['payload']['url']
                 kairos_response = get_image_attr(img_url)
                 if kairos_response is None:
+                	send_response(sender_id, 'Can you try one more time?')
                 	am_i_a_joke(sender_id)
                 	return 'failure'
                 data = {'age': kairos_response['age'], 'gender': getGender(kairos_response['gender'])}
