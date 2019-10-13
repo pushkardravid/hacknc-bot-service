@@ -32,25 +32,31 @@ def handle_message():
         height = 72
         weight = 189
         zipCode = 27606
-        coverage = 1111111
+        coverage = 1000000
         duration = 10
         data = request.get_json()
         print(data)
         sender_id = data['entry'][0]['messaging'][0]['sender']['id']
 
-        message = data['entry'][0]['messaging'][0]['message']
-        print(message)
+        message = None
+        if "message" in data['entry'][0]['messaging'][0]:
+        	message = data['entry'][0]['messaging'][0]['message']
+        payload = None
+        if "postback" in data['entry'][0]['messaging'][0] and "payload" in data['entry'][0]['messaging'][0]['postback']:
+        	payload = data['entry'][0]['messaging'][0]['postback']['payload']
+        #print(message)
+        #print("payload = " + str(payload))
         # check if attachment is there
-        if 'attachments' in message:
+        if message is not None and 'attachments' in message:
             attachments = message['attachments'][0]
             if attachments['type'] == 'image':
                 img_url = attachments['payload']['url']
                 kairos_response = get_image_attr(img_url)
                 if kairos_response is None:
-                	am_i_a_joke()
+                	am_i_a_joke(sender_id)
                 	return 'failure'
                 data = {'age': kairos_response['age'], 'gender': getGender(kairos_response['gender'])}
-                replaceInDB(data)
+                replaceInDB(data, sender_id)
                 responseMessage = askForRemaining(data)
                 send_response(sender_id, responseMessage)
                 #premium = getQuote(kairos_response['age'], getGender(kairos_response['gender']), height, weight, zipCode, coverage, duration)
@@ -62,30 +68,31 @@ def handle_message():
             elif attachments['type'] == 'location':
                 latitude, longitude = attachments['payload']['coordinates']['lat'], attachments['payload']['coordinates']['long']
                 zip_code = get_zip(latitude, longitude)
-                updateToDB({"zipCode": zip_code})
-                newData = getFromDB()
+                updateToDB({"zipCode": zip_code}, sender_id)
+                newData = getFromDB(sender_id)
                 responseMessage = askForRemaining(newData)
                 if (responseMessage != None):
                     send_response(sender_id, responseMessage)
                 else:
                     premium = getPremium(newData)
                     send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(duration) + ' years against a coverage of $' + str(coverage))
-                    get_typing_dots()
+                    get_typing_dots(sender_id)
                     send_response(sender_id, 'Hold on, I have something more for you!')
-                    get_typing_dots()
-                    generate_plan_buttons()
-        elif (isButton(message)):
-            myDuration = getButton(message)
-            data = getFromDB()
-            highestPrority = getHighestPriorityRemaining(data)
-            if duration is not None and highestPrority is None:
-                premium = getPremium(data, myDuration)
-                send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(myDuration) + ' years against a coverage of $' + str(coverage))
-            else:
-                responseMessage = askForRemaining(data)
-                send_response(sender_id, responseMessage)
+                    get_typing_dots(sender_id)
+                    generate_plan_buttons(sender_id)
+        elif isButton(payload):
+        	print(payload)
+        	myDuration = getButton(payload)
+        	data = getFromDB(sender_id)
+        	highestPrority = getHighestPriorityRemaining(data)
+        	if duration is not None and highestPrority is None:
+        		premium = getPremium(data, myDuration)
+        		send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(myDuration) + ' years against a coverage of $' + str(coverage))
+        	else:
+        		responseMessage = askForRemaining(data)
+        		send_response(sender_id, responseMessage)
         else:
-            data = getFromDB()
+            data = getFromDB(sender_id)
             highestPref = getHighestPriorityRemaining(data)
             applicable = True
             if (highestPref != None):
@@ -98,18 +105,18 @@ def handle_message():
                             key = "height"
                         else:
                             key = "weight"
-                        updateToDB({key: num})
-                        newData = getFromDB()
+                        updateToDB({key: num}, sender_id)
+                        newData = getFromDB(sender_id)
                         responseMessage = askForRemaining(newData)
                         if (responseMessage != None):
                             send_response(sender_id, responseMessage)
                         else:
                             premium = getPremium(newData)
                             send_response(sender_id, 'You\'ll be paying a premium of $' + str(premium) + ' per month for the next ' + str(duration) + ' years against a coverage of $' + str(coverage))
-                            get_typing_dots()
+                            get_typing_dots(sender_id)
                             send_response(sender_id, 'Hold on, I have something more for you!')
-                            get_typing_dots()
-                            generate_plan_buttons()
+                            get_typing_dots(sender_id)
+                            generate_plan_buttons(sender_id)
                     else:
                         applicable = False
                 if (applicable == False):
@@ -121,7 +128,7 @@ def handle_message():
         print('fail bc')
         print(e)
         sender_id = data['entry'][0]['messaging'][0]['sender']['id']
-        send_response(sender_id, 'sorry, mai chutiya hu')
+        send_response(sender_id, 'Sorry, I couldn\'t get you. Could you please rephrase')
         return 'failure'
 
 
@@ -153,7 +160,7 @@ def get_image_attr(image_url):
 
 
 def send_response(sender_id, message_text):
-	get_typing_dots()
+	get_typing_dots(sender_id)
 	url = "https://graph.facebook.com/v4.0/me/messages"
 	params = {'access_token': 'EAAIMDU43nkMBAMsTVVOJwAJYmje3ycxvyTFRENPoRs8ZB2Q2ji15RwY5MMuGBbWWywyVNrJQR2E29YEVcpa41dBvouHe23MS4nanceH2UZBsiJZBO8hDoEq2VFFryqweHD8RuOgO65v3JfS7Ial56cKPZC1IG0Iymafid9eTqgZDZD'}
 	headers = {'Content-Type': 'application/json'}
@@ -232,18 +239,18 @@ def get_zip(latitude, longitude):
     zip_code = [i['long_name'] for i in address_tuples if i['types'][0] == 'postal_code'][0]
     return zip_code
 
-def getFromDB():
-    return posts.find_one('UNIQUE_ID')
+def getFromDB(sender_id):
+    return posts.find_one(sender_id)
 
-def updateToDB(data):
+def updateToDB(data, sender_id):
     only_id = {
-        '_id': 'UNIQUE_ID'
+        '_id': sender_id
     }
     result = posts.update_one(only_id, {"$set": data}, upsert=True)
 
-def replaceInDB(data):
+def replaceInDB(data, sender_id):
     only_id = {
-        '_id': 'UNIQUE_ID'
+        '_id': sender_id
     }
     result = posts.replace_one(only_id, data, upsert=True)
 
@@ -281,12 +288,12 @@ def getNum(string):
     if (match != None):
         return int(match.group())
 
-def generate_plan_buttons():
+def generate_plan_buttons(sender_id):
 	url = "https://graph.facebook.com/v4.0/me/messages"
 
 	querystring = {"access_token":"EAAIMDU43nkMBAMsTVVOJwAJYmje3ycxvyTFRENPoRs8ZB2Q2ji15RwY5MMuGBbWWywyVNrJQR2E29YEVcpa41dBvouHe23MS4nanceH2UZBsiJZBO8hDoEq2VFFryqweHD8RuOgO65v3JfS7Ial56cKPZC1IG0Iymafid9eTqgZDZD"}
 
-	payload = "{\n  \"recipient\":{\n    \"id\":\"3046136198791668\"\n  },\n  \"message\":{\n    \"attachment\":{\n      \"type\":\"template\",\n      \"payload\":{\n        \"template_type\":\"button\",\n        \"text\":\"Please choose one of the following options\",\n        \"buttons\":[\n          {\n  \"type\": \"postback\",\n  \"title\": \"10 Year Term Plan\",\n  \"payload\": \"button-10\"\n},{\n  \"type\": \"postback\",\n  \"title\": \"20 Year Term Plan\",\n  \"payload\": \"button-20\"\n},{\n  \"type\": \"postback\",\n  \"title\": \"30 Year Term Plan\",\n  \"payload\": \"button-30\"\n}\n        ]\n      }\n    }\n  }\n}"
+	payload = "{\n  \"recipient\":{\n    \"id\":\"%s\"\n  },\n  \"message\":{\n    \"attachment\":{\n      \"type\":\"template\",\n      \"payload\":{\n        \"template_type\":\"button\",\n        \"text\":\"Please choose one of the following options\",\n        \"buttons\":[\n          {\n  \"type\": \"postback\",\n  \"title\": \"10 Year Term Plan\",\n  \"payload\": \"button-10\"\n},{\n  \"type\": \"postback\",\n  \"title\": \"20 Year Term Plan\",\n  \"payload\": \"button-20\"\n},{\n  \"type\": \"postback\",\n  \"title\": \"30 Year Term Plan\",\n  \"payload\": \"button-30\"\n}\n        ]\n      }\n    }\n  }\n}" % sender_id
 	headers = {
 	    'Content-Type': "application/json",
 	    'User-Agent': "PostmanRuntime/7.17.1",
@@ -303,12 +310,12 @@ def generate_plan_buttons():
 	response = requests.request("POST", url, data=payload, headers=headers, params=querystring)
 	return 'success'
 
-def get_typing_dots():
+def get_typing_dots(sender_id):
 	url = "https://graph.facebook.com/v2.6/me/messages"
 
 	querystring = {"access_token":"EAAIMDU43nkMBAMsTVVOJwAJYmje3ycxvyTFRENPoRs8ZB2Q2ji15RwY5MMuGBbWWywyVNrJQR2E29YEVcpa41dBvouHe23MS4nanceH2UZBsiJZBO8hDoEq2VFFryqweHD8RuOgO65v3JfS7Ial56cKPZC1IG0Iymafid9eTqgZDZD"}
 
-	payload = "{\n  \"recipient\":{\n    \"id\":\"3046136198791668\"\n  },\n  \"sender_action\":\"typing_on\"\n}"
+	payload = "{\n  \"recipient\":{\n    \"id\":\"%s\"\n  },\n  \"sender_action\":\"typing_on\"\n}" % sender_id
 	headers = {
 	    'Content-Type': "application/json",
 	    'Accept': "*/*",
@@ -324,10 +331,10 @@ def get_typing_dots():
 
 	print(response.text)
 
-def am_i_a_joke():
+def am_i_a_joke(sender_id):
 	url = "https://graph.facebook.com/v2.6/me/messages"
 	querystring = {"access_token":"EAAIMDU43nkMBAMsTVVOJwAJYmje3ycxvyTFRENPoRs8ZB2Q2ji15RwY5MMuGBbWWywyVNrJQR2E29YEVcpa41dBvouHe23MS4nanceH2UZBsiJZBO8hDoEq2VFFryqweHD8RuOgO65v3JfS7Ial56cKPZC1IG0Iymafid9eTqgZDZD"}
-	payload = "{\n  \"recipient\":{\n    \"id\":\"3046136198791668\"\n  },\n  \"message\":{\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n         \"template_type\": \"media\",\n         \"elements\": [\n            {\n               \"media_type\": \"image\",\n               \"url\": \"https://www.facebook.com/100745301348385/photos/p.100897881333127/100897881333127/?type=3&theater\"\n            }\n         ]\n      }\n    }    \n  }\n}"
+	payload = "{\n  \"recipient\":{\n    \"id\":\"%s\"\n  },\n  \"message\":{\n    \"attachment\": {\n      \"type\": \"template\",\n      \"payload\": {\n         \"template_type\": \"media\",\n         \"elements\": [\n            {\n               \"media_type\": \"image\",\n               \"url\": \"https://www.facebook.com/100745301348385/photos/p.100897881333127/100897881333127/?type=3&theater\"\n            }\n         ]\n      }\n    }    \n  }\n}" % sender_id
 	headers = {'Content-Type': "application/json",'User-Agent': "PostmanRuntime/7.17.1",'Accept': "*/*",'Cache-Control': "no-cache",'Postman-Token': "20da8710-9a1a-4a95-96bc-638a4704f43e,0e568397-73db-464e-999d-f007997037bb",'Host': "graph.facebook.com",'Accept-Encoding': "gzip, deflate",'Content-Length': "410",'Connection': "keep-alive",'cache-control': "no-cache"}
 	response = requests.request("POST", url, data=payload, headers=headers, params=querystring)
 
@@ -341,11 +348,13 @@ def getButton(string):
     return None
 
 def isButton(string):
-    button = getButton(string)
-    if button is None:
-        return False
-    else:
-        return True
+	if string is None:
+		return False
+	button = getButton(string)
+	if button is None:
+		return False
+	else:
+		return True
 
 if __name__ == '__main__':
     app.run(debug=True)
