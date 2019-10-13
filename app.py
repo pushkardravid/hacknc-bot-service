@@ -18,22 +18,28 @@ def handle_verification():
 
 @app.route('/', methods=['POST'])
 def handle_message():
-    data = request.get_json()
-    print(data)
-
-    message = data['entry'][0]['messaging'][0]['message']
-    # check if attachment is there
-    if message.has_key('attachments'):
-        attachments = message['attachments'][0]
-        if attachments['type'] == 'images':
-            img_url = attachments['payload']
-            get_image_attr(img_url)
-
-    sender_id = data['entry'][0]['messaging'][0]['sender']['id']
-    print data['entry'][0]['messaging'][0]['message']['text']
-    # get_response(data['entry'][0]['messaging'][0]['message']['text'])
-    send_response(sender_id, get_response(data['entry'][0]['messaging'][0]['message']['text']))
-    return 'success'
+	try:
+	    data = request.get_json()
+	    print(data)
+	    sender_id = data['entry'][0]['messaging'][0]['sender']['id']
+	    message = data['entry'][0]['messaging'][0]['message']
+	    # check if attachment is there
+	    if 'attachments' in message:
+	        attachments = message['attachments'][0]
+	        if attachments['type'] == 'image':
+	            img_url = attachments['payload']['url']
+	            kairos_response = get_image_attr(img_url)
+	            print(kairos_response)
+	            send_response(sender_id, 'Your ' + str(kairos_response['age']) + ' years old')
+	    else:
+	    	send_response(sender_id, get_response(data['entry'][0]['messaging'][0]['message']['text']))
+	    return 'success'
+	except Exception as e:
+		print('fail bc')
+		print(e)
+		sender_id = data['entry'][0]['messaging'][0]['sender']['id']
+		send_response(sender_id, 'sorry, mai chutiya hu')
+		return 'failure'
 
 
 @app.route('/dummy/', methods=['POST'])
@@ -46,7 +52,7 @@ def dummy_call():
 def get_image_attr(image_url):
     url = 'https://api.kairos.com/detect'
     data = {"image": "%s" % image_url, "selector": "ROLL"}
-    headers = {'Content-Type': 'application/json', 'app_id': os.environ['app_id'], 'app_key': os.environ['app_key']}
+    headers = {'Content-Type': 'application/json', 'app_id': '9d749141', 'app_key': '5c6e1d1671afb0845147870ac7ce3446'}
     response = requests.post(url, headers=headers, json=data)
     resp_json = response.json()
     images = resp_json['images'][0]
@@ -58,7 +64,7 @@ def get_image_attr(image_url):
 def send_response(sender_id, message_text):
     url = "https://graph.facebook.com/v4.0/me/messages"
     params = {
-        'access_token': 'EAAIMDU43nkMBAExoHtqBMPv4Oo43PreEZAoKZC5dz4efq3S595VNDgfjhbhp5TGLhkm0mbS6rBHdeabUysA0bkkhP3gYvhsqU8mdZCupWUSq8bkZA1xvD35dhToUTQcOlK0MV5doxNhg6oqDKEZBhiSMBS4Ikw26NgPDaVnOAZCAZDZD'}
+        'access_token': 'EAAIMDU43nkMBABY4e5PlZBBvNdPpHAyrEoTF4Niep5X1hSwMaZAcJPZCNrjxlR8VPwogerSishkbxhtLkSG1UR1zGeo6cXaR5Q0YKgBJGGVIYmyxQUgOKekYQZB3SSM7NcQtvVjuqpvQ82rcN4RQ7HwpHHMXXUrYkB1m4RmOHwZDZD'}
     headers = {'Content-Type': 'application/json'}
     data = {'recipient': {'id': sender_id}, 'message': {'text': message_text}}
     response = requests.post(url, params=params, headers=headers, json=data)
@@ -91,7 +97,7 @@ def get_response(msg):
         'cache-control': "no-cache"
     }
     response = requests.request("POST", url, data=json.dumps(payload), headers=headers, params=querystring).json()
-    t = response['result']['fulfilment']['speech']
+    t = response['result']['fulfillment']['speech']
     print(t)
     return t
 
